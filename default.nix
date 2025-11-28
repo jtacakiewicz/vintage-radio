@@ -15,6 +15,8 @@ let
 in pkgs.mkShell {
     name = "python-env";
     packages = [
+        arduino-cli
+        micronucleus
         python
         pyPkgs
     ];
@@ -49,6 +51,9 @@ in pkgs.mkShell {
             uv pip install -r requirements.txt
         fi
         if command -v zsh >/dev/null 2>&1
+
+        arduino-cli core install digistump:avr
+
         then
             exec zsh
         fi
