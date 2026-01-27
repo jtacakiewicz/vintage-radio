@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from buttons import Buttons
+from buttons import RequestButtons
 
 class MusicPlayer(ABC):
     """An abstract base class representing a music player."""
@@ -24,7 +24,7 @@ class MusicPlayer(ABC):
         pass
 
     @abstractmethod
-    def switch(self, button: Buttons):
+    def switch(self, button: RequestButtons):
         pass
 
     @abstractmethod

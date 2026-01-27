@@ -1,7 +1,9 @@
-from music_player import MusicPlayer
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import time as time
+
+from .music_player import MusicPlayer
+from buttons import RequestButtons
 
 class SpotifyPlayer(MusicPlayer):
     def __init__(self, device_name='vintage-radio', report_interval=10):
@@ -25,10 +27,10 @@ class SpotifyPlayer(MusicPlayer):
         self.info = None
 
     def pause(self):
-        self.sp.start_playback(device_id=self.device_id)
+        self.sp.pause_playback(device_id=self.device_id)
 
-    def play(self):
-        self.sp.start_playback(device_id=self.device_id)
+    def play(self, link: str=None):
+        self.sp.start_playback(device_id=self.device_id, context_uri=link)
 
     def next(self):
         self.sp.next_track(device_id=self.device_id)
@@ -36,7 +38,7 @@ class SpotifyPlayer(MusicPlayer):
     def previous(self):
         self.sp.previous_track(device_id=self.device_id)
 
-    def switch(self):
+    def switch(self, button: RequestButtons):
         self.sp.previous_track(device_id=self.device_id)
 
     def progress(self):
@@ -58,5 +60,3 @@ class SpotifyPlayer(MusicPlayer):
         info = self.sp.currently_playing()
         total_time = info['item']['duration_ms']
         self.sp.seek_track(int(total_time*time))
-
-
