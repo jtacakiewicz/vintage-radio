@@ -1,12 +1,13 @@
+import yaml
+import time as time
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import time as time
 
 from .music_player import MusicPlayer
 from buttons import RequestButtons
 
 class SpotifyPlayer(MusicPlayer):
-    def __init__(self, device_name='vintage-radio', report_interval=10):
+    def __init__(self, device_name='vintage-radio', report_interval=10, config_file='tracks.yml'):
         super().__init__()
         scope = "user-read-playback-state user-modify-playback-state"
         self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope))
@@ -20,11 +21,34 @@ class SpotifyPlayer(MusicPlayer):
             if d['name'] == device_name:
                 self.device_id = d['id']
                 break
+
         self.last_asked = time.time()
         self.report_interval = report_interval
         self.next_report = time.time()
         self.sp.transfer_playback(self.device_id)
         self.info = None
+
+        self.button_mapping = {
+            RequestButtons.Button1: "https://open.spotify.com/album/6V9rvW05Um5bIHePPfeI8p", #Vows
+            RequestButtons.Button2: "https://open.spotify.com/playlist/3yNdAPURGx5mBrs4t2vkRZ", #incredibox
+            RequestButtons.Button3: "https://open.spotify.com/album/5VoeRuTrGhTbKelUfwymwu", #born to die
+            RequestButtons.Button4: "https://open.spotify.com/album/2KSWrd22LGc0Hmqs2Z5i7z", # still live
+            RequestButtons.Button5: "https://open.spotify.com/album/3qU4wXm0Qngbtnr5PiLbFX", # caravan
+            RequestButtons.Button6: "https://open.spotify.com/playlist/02Jjjt6CHQW3lBq5Co5SCW", #Gotg Vol.1
+            RequestButtons.Button7: "https://open.spotify.com/album/5XJ2NeBxZP3HFM8VoBQEUe", #bangarang
+            RequestButtons.Button8: "https://open.spotify.com/album/2ANVost0y2y52ema1E9xAZ", #Thriller
+            RequestButtons.Button9: "https://open.spotify.com/playlist/5b611EptDuCm5Pe8xCACTT", #Konoba
+        }
+        try:
+            f = open(config_file)
+            config = yaml.safe_load(f)
+            for button in RequestButtons:
+                if button.value in config:
+                    self.button_mapping[button] = config[button.value]
+        except Exception as e:
+            print(e)
+            print('No config provided, using defaults')
+            pass
 
     def pause(self):
         self.sp.pause_playback(device_id=self.device_id)
@@ -39,7 +63,8 @@ class SpotifyPlayer(MusicPlayer):
         self.sp.previous_track(device_id=self.device_id)
 
     def switch(self, button: RequestButtons):
-        self.sp.previous_track(device_id=self.device_id)
+        print(self.button_mapping[button])
+        self.play(link=self.button_mapping[button])
 
     def progress(self):
         now = time.time()
