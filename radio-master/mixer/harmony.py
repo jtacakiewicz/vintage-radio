@@ -7,6 +7,7 @@ class HarmonizerEffect(Effect):
     def __init__(self, input_source):
         # Smooth toggling
         self.fader = SigTo(value=0, time=0.05)
+        self.internal_input = InputFader(input_source)
         
         # Internal Parameters
         self.env = WinTable(8) # Half-sine window
@@ -28,10 +29,20 @@ class HarmonizerEffect(Effect):
 
         # Modulated delay lines (The core of Granular Pitch Shifting)
         # We apply the fader here to enable/disable the effect contribution
-        self.snd = Delay(input_source, delay=self.ind * self.wsize, mul=self.win * self.fader).mix(1)
+        self.snd = Delay(self.internal_input, delay=self.ind * self.wsize, mul=self.win * self.fader).mix(1)
 
         # Output stage: Mixed to stereo
-        self.stereo = self.snd.mix(2).out()
+        self.stereo = self.snd.mix(2)
+
+    @property
+    def output(self):
+        return self.stereo
+
+    def setInput(self, inp):
+        if inp is None:
+            return
+        self.internal_input.setInput(inp)
+        print("Harmonizer input set\r")
 
     def on(self):
         self.fader.value = 1

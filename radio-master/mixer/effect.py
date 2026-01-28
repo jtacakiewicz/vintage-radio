@@ -21,3 +21,11 @@ class Effect(ABC):
     @abstractmethod
     def setValue2(self, v: float):
         pass
+
+    @abstractmethod
+    def setInput(self, input_obj):
+        pass
+
+    @property
+    def output(self):
+        pass
