@@ -1,0 +1,28 @@
+from pyo import *
+
+RATE = 44100
+CHANNELS = 2
+CHUNK = 16384
+INPUT_DEVICE = 11
+OUTPUT_DEVICE = 11
+
+s = Server(sr=RATE, nchnls=CHANNELS, buffersize=CHUNK, duplex=1).boot()
+s.setInputDevice(INPUT_DEVICE)
+s.setOutputDevice('hw:1,0')
+s.boot()
+
+keep_alive = Sine(freq=5, mul=0.01).out()
+inp = Input(chnl=[0, 1])
+
+inp.out()
+
+s.start()
+
+print("🎧 Passthrough running. Press Ctrl+C to stop.")
+
+try:
+    while True:
+        pass
+except KeyboardInterrupt:
+    s.stop()
+    s.shutdown()
