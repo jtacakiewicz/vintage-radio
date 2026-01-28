@@ -51,11 +51,10 @@ class KeyboardController(IOController):
             self._reset_mode()
 
     def update(self):
-        old_req = self.active_requests
-        old_effects = self.active_effects
+        old_req = set(self.active_requests)
+        old_effects = set(self.active_effects)
         old_volume = self.volume
         self.active_requests = set()
-        self.active_effects = set()
 
         ready, _, _ = select.select([sys.stdin], [], [], 0.0)
         if ready:
@@ -68,10 +67,24 @@ class KeyboardController(IOController):
                 elif seq == '[B':
                     self.volume -= 0.1
                     self.volume = max(self.volume, 0)
-            mapping = {str(i): getattr(RequestButtons, f"Button{i}") for i in range(1, 10)}
+            req_mapping = {str(i): getattr(RequestButtons, f"Button{i}") for i in range(1, 10)}
             
-            if char in mapping:
-                self.active_requests.add(mapping[char])
+            if char in req_mapping:
+                self.active_requests.add(req_mapping[char])
+
+            effect_mapping = {
+                'j': EffectButtons.Jazz,
+                's': EffectButtons.Spatial3D,
+                'v': EffectButtons.Voice,
+                'b': EffectButtons.Bass,
+                'o': EffectButtons.Orchestra,
+            }
+            if char in effect_mapping:
+                effect = effect_mapping[char]
+                if effect in self.active_effects:
+                    self.active_effects.remove(effect)
+                else:
+                    self.active_effects.add(effect_mapping[char])
 
         if self.volume_callback and old_volume != self.volume:
             self.volume_callback(old_volume, self.volume)
@@ -81,7 +94,7 @@ class KeyboardController(IOController):
             for req in new:
                 self.request_callback(req)
 
-        if self.effect_callback and old_effects != self.effect_callback:
+        if self.effect_callback and old_effects != self.active_effects:
             added = self.active_effects - old_effects
             for n in added:
                 self.effect_callback(n, True)
