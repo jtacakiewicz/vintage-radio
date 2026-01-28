@@ -3,15 +3,18 @@ from controller.keyboard_controller import KeyboardController
 from mixer.mixer import Mixer
 from mixer.dummy import DummyEffect
 from mixer.passthrough import PassthroughEffect
+from mixer.harmony import HarmonizerEffect
 from buttons import EffectButtons
 
 sp = SpotifyPlayer()
 kc = KeyboardController()
 mx = Mixer()
 mx.addEffect(DummyEffect, effect_type=EffectButtons.Jazz)
+mx.addEffect(HarmonizerEffect, effect_type=EffectButtons.Voice)
 mx.addEffect(PassthroughEffect, effect_type='default')
 
 kc.setVolumeCallback(lambda x, y: print(f"Volume: {y}", end="\r\n"))
 kc.setRequestCallback(lambda req: sp.switch(req))
 kc.setEffectCallback(lambda e, active: mx.on(e) if active else mx.off(e))
+kc.setOptionalValueCallback(lambda v1, v2: print(f"Opt value {v1}, {v2}\r"))
 kc.run_loop()
