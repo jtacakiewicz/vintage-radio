@@ -5,6 +5,7 @@ from .effect import Effect
 
 class ReverbEffect(Effect):
     def __init__(self, input_source):
+        self.internal_input = InputFader(input_source)
         # Smooth toggling (0 = off, 1 = on)
         self.fader = SigTo(value=0, time=0.05)
         # We use Sigs for the parameters we want to control dynamically
@@ -12,18 +13,27 @@ class ReverbEffect(Effect):
         self.brightness = Sig(3500)     # Controls Tone frequency
         # Four parallel stereo comb filters
         # We multiply the original feedback values by our scalar
-        self.comb1 = Delay(input_source, delay=[0.0297, 0.0277], feedback=0.65 * self.feedback_scalar)
-        self.comb2 = Delay(input_source, delay=[0.0371, 0.0393], feedback=0.51 * self.feedback_scalar)
-        self.comb3 = Delay(input_source, delay=[0.0411, 0.0409], feedback=0.50 * self.feedback_scalar)
-        self.comb4 = Delay(input_source, delay=[0.0137, 0.0155], feedback=0.73 * self.feedback_scalar)
+        self.comb1 = Delay(self.internal_input, delay=[0.0297, 0.0277], feedback=0.65 * self.feedback_scalar)
+        self.comb2 = Delay(self.internal_input, delay=[0.0371, 0.0393], feedback=0.51 * self.feedback_scalar)
+        self.comb3 = Delay(self.internal_input, delay=[0.0411, 0.0409], feedback=0.50 * self.feedback_scalar)
+        self.comb4 = Delay(self.internal_input, delay=[0.0137, 0.0155], feedback=0.73 * self.feedback_scalar)
 
-        self.combsum = input_source + self.comb1 + self.comb2 + self.comb3 + self.comb4
+        self.combsum = self.internal_input + self.comb1 + self.comb2 + self.comb3 + self.comb4
         # Two serial allpass filters
         self.all1 = Allpass(self.combsum, delay=[0.005, 0.00507], feedback=0.75)
         self.all2 = Allpass(self.all1, delay=[0.0117, 0.0123], feedback=0.61)
         # Output stage with Brightness control and the Master Fader
         # mul=0.25 from your original script is combined with the fader
-        self.lowp = Tone(self.all2, freq=self.brightness, mul=0.25 * self.fader).out()
+        self.lowp = Tone(self.all2, freq=self.brightness, mul=0.25 * self.fader)
+
+    @property
+    def output(self):
+        return self.lowp
+
+    def setInput(self, inp):
+        if inp is None:
+            return
+        self.internal_input.setInput(inp)
 
     def on(self):
         self.fader.value = 1

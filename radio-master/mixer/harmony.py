@@ -42,7 +42,6 @@ class HarmonizerEffect(Effect):
         if inp is None:
             return
         self.internal_input.setInput(inp)
-        print("Harmonizer input set\r")
 
     def on(self):
         self.fader.value = 1

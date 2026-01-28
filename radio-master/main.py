@@ -1,8 +1,10 @@
 from players.spotify_player import SpotifyPlayer
 from controller.keyboard_controller import KeyboardController
 from mixer.mixer import Mixer
-from mixer.dummy import DummyEffect
 from mixer.harmony import HarmonizerEffect
+from mixer.flanger import FlangerEffect
+from mixer.chorus import ChorusEffect
+from mixer.reverb import ReverbEffect
 from buttons import EffectButtons
 
 last_effect = None
@@ -10,9 +12,13 @@ sp = SpotifyPlayer()
 kc = KeyboardController()
 mx = Mixer()
 mx.addEffect(HarmonizerEffect, effect_type=EffectButtons.Voice)
+mx.addEffect(ReverbEffect, effect_type=EffectButtons.Jazz)
+mx.addEffect(FlangerEffect, effect_type=EffectButtons.Bass)
+mx.addEffect(ChorusEffect, effect_type=EffectButtons.Orchestra)
 
 def setEffect(e, active):
     global last_effect
+    print(f"Setting effect of {e} to {active}", end="\r\n")
     if active:
         mx.on(e)
         last_effect = e

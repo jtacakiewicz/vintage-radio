@@ -7,6 +7,7 @@ class ChorusEffect(Effect):
     def __init__(self, input_source):
         # Smooth toggling
         self.fader = SigTo(value=0, time=0.05)
+        self.internal_input = InputFader(input_source)
         
         # Parameters to be controlled via interface
         self.depth_scaler = Sig(1.0)
@@ -25,10 +26,19 @@ class ChorusEffect(Effect):
 
         # 8 Modulated delay lines
         # We apply the fader here to enable/disable the effect contribution
-        self.delays = Delay(input_source, 
+        self.delays = Delay(self.internal_input, 
                             delay=self.lfos, 
                             feedback=0.5, 
-                            mul=0.5 * self.fader).out()
+                            mul=0.5 * self.fader)
+
+    @property
+    def output(self):
+        return self.delays
+
+    def setInput(self, inp):
+        if inp is None:
+            return
+        self.internal_input.setInput(inp)
 
     def on(self):
         self.fader.value = 1

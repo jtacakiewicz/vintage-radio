@@ -5,6 +5,7 @@ from .effect import Effect
 
 class FlangerEffect(Effect):
     def __init__(self, input_source):
+        self.internal_input = InputFader(input_source)
         self.middelay = 0.005
         self.depth = Sig(0.99)
         self.lfospeed = Sig(0.3)
@@ -15,10 +16,19 @@ class FlangerEffect(Effect):
         self.lfo = Sine(freq=self.lfospeed, mul=self.middelay * self.depth, add=self.middelay)
         # Flanger Core
         # DCBlock is good practice inside the Delay loop for stability
-        self.flg = Delay(input_source, delay=self.lfo, feedback=self.feedback)
+        self.flg = Delay(self.internal_input, delay=self.lfo, feedback=self.feedback)
         # Compression and Output
         # We apply the fader here to enable/disable the effect's contribution
-        self.cmp = Compress(input_source + self.flg, thresh=-20, ratio=4, mul=self.fader).out()
+        self.cmp = Compress(self.internal_input + self.flg, thresh=-20, ratio=4, mul=self.fader)
+
+    @property
+    def output(self):
+        return self.cmp
+
+    def setInput(self, inp):
+        if inp is None:
+            return
+        self.internal_input.setInput(inp)
 
     def on(self):
         self.fader.value = 1
