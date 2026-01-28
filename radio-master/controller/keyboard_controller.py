@@ -15,9 +15,12 @@ class KeyboardController(IOController):
         self.active_requests = set()
         self.active_effects = set()
         self.volume = 0.5
+        self.mod1 = 0.5
+        self.mod2 = 0.5
 
         self.volume_callback = None
         self.effect_callback = None
+        self.effect_value_callback = None
         self.request_callback = None
 
     def _set_raw_mode(self):
@@ -37,6 +40,9 @@ class KeyboardController(IOController):
     def setEffectCallback(self, callback: Callable[[EffectButtons, bool], None]):
         self.effect_callback = callback
 
+    def setOptionalValueCallback(self, callback: Callable[[float, float], None]):
+        self.effect_value_callback = callback
+
     def setVolumeCallback(self, callback: Callable[[float, float], None]):
         self.volume_callback = callback
 
@@ -54,6 +60,7 @@ class KeyboardController(IOController):
         old_req = set(self.active_requests)
         old_effects = set(self.active_effects)
         old_volume = self.volume
+        old_mods = (self.mod1, self.mod2)
         self.active_requests = set()
 
         ready, _, _ = select.select([sys.stdin], [], [], 0.0)
@@ -62,18 +69,21 @@ class KeyboardController(IOController):
             if char == '\x1b':
                 seq = sys.stdin.read(2)
                 if seq == '[A':
-                    self.volume += 0.1
-                    self.volume = min(self.volume, 1)
+                    self.volume = min(self.volume + 0.1, 1)
                 elif seq == '[B':
-                    self.volume -= 0.1
-                    self.volume = max(self.volume, 0)
+                    self.volume = max(self.volume - 0.1, 0)
+                elif seq == '[D':
+                    self.mod1 = max(self.mod1 - 0.1, 0)
+                elif seq == '[C': # Right Arrow
+                    self.mod1 = min(self.mod1 + 0.1, 1)
+
             req_mapping = {str(i): getattr(RequestButtons, f"Button{i}") for i in range(1, 10)}
             
             if char in req_mapping:
                 self.active_requests.add(req_mapping[char])
 
             effect_mapping = {
-                'j': EffectButtons.Jazz,
+                'a': EffectButtons.Jazz,
                 's': EffectButtons.Spatial3D,
                 'v': EffectButtons.Voice,
                 'b': EffectButtons.Bass,
@@ -102,3 +112,5 @@ class KeyboardController(IOController):
             deleted = old_effects - self.active_effects
             for d in deleted:
                 self.effect_callback(d, False)
+        if self.effect_value_callback and old_mods != (self.mod1, self.mod2):
+            self.effect_value_callback(self.mod1, self.mod2)

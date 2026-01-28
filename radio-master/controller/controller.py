@@ -24,5 +24,10 @@ class IOController(ABC):
         """Set callback to volume change, arguments being the old volume level and new volume level."""
         pass
 
+    @abstractmethod
+    def setOptionalValueCallback(self, callback: Callable[[float, float], None]):
+        """Set callback to effect value change. Arguments are the two optional values."""
+        pass
+
     def update(self):
         pass
