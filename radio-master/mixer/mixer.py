@@ -5,24 +5,25 @@ from buttons import EffectButtons
 class Mixer:
     def __init__(self, use_pyo=True):
         if use_pyo:
-            from pyo import Server, Input
+            from pyo import Server, Input, pa_list_devices
+            pa_list_devices()
+
             RATE = 44100
             CHANNELS = 2
             CHUNK = 16384
-            INPUT_DEVICE = 11
-            OUTPUT_DEVICE = 11
-            self.s = Server(sr=RATE, nchnls=CHANNELS, buffersize=CHUNK, duplex=1).boot()
-            self.s.setInputDevice(INPUT_DEVICE)
-            self.s.setOutputDevice('hw:1,0')
+            self.s = Server(sr=RATE, nchnls=CHANNELS, buffersize=CHUNK, duplex=1)
+            self.s.setInputDevice(11)
+            self.s.setOutputDevice(11)
             self.s.boot()
             self.input = Input(chnl=[0, 1])
+            print("Mixer started", end="\r\n")
             self.s.start()
         else:
             self.input = None
             self.s = None
 
         self.effects = {}
-        print("Mixer running . . .", end="\r\n")
+        print("Mixer running", end="\r\n")
 
     def addEffect(self, new_effect: Type[Effect], effect_type: EffectButtons):
         self.effects[effect_type] = new_effect(self.input)
