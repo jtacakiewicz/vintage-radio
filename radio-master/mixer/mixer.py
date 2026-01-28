@@ -11,9 +11,10 @@ class Mixer:
             RATE = 44100
             CHANNELS = 2
             CHUNK = 16384
+            default_idx = 1
             self.s = Server(sr=RATE, nchnls=CHANNELS, buffersize=CHUNK, duplex=1)
-            self.s.setInputDevice(11)
-            self.s.setOutputDevice(11)
+            self.s.setInputDevice(default_idx)
+            self.s.setOutputDevice(default_idx)
             self.s.boot()
             self.input = Input(chnl=[0, 1])
             self.master = InputFader(self.input)
