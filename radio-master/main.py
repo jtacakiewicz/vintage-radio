@@ -4,7 +4,6 @@ from buttons import RequestButtons
 
 sp = SpotifyPlayer()
 kc = KeyboardController()
-while True:
-    reqs = kc.getRequests()
-    for r in reqs:
-        sp.switch(r)
+kc.setVolumeCallback(lambda x, y: print(f"Volume: {y}", end="\r\n"))
+kc.setRequestCallback(lambda req: sp.switch(req))
+kc.run_loop()

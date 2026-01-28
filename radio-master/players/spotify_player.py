@@ -14,7 +14,7 @@ class SpotifyPlayer(MusicPlayer):
 
         devices = self.sp.devices()
         for d in devices['devices']:
-            print('device: ', d['name'], d['id'])
+            print('device: ', d['name'], d['id'], end="\r\n")
 
         self.device_id = None
         for d in devices['devices']:
@@ -46,8 +46,8 @@ class SpotifyPlayer(MusicPlayer):
                 if button.value in config:
                     self.button_mapping[button] = config[button.value]
         except Exception as e:
-            print(e)
-            print('No config provided, using defaults')
+            print(e, end="\r\n")
+            print('No config provided, using defaults', end="\r\n")
             pass
 
     def pause(self):
@@ -63,7 +63,6 @@ class SpotifyPlayer(MusicPlayer):
         self.sp.previous_track(device_id=self.device_id)
 
     def switch(self, button: RequestButtons):
-        print(self.button_mapping[button])
         self.play(link=self.button_mapping[button])
 
     def progress(self):
