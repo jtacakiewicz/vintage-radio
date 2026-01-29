@@ -63,7 +63,18 @@ class SpotifyPlayer(MusicPlayer):
         self.sp.previous_track(device_id=self.device_id)
 
     def switch(self, button: RequestButtons):
-        self.play(link=self.button_mapping[button])
+        if button == RequestButtons.PlayButton:
+            self.play()
+        elif button == RequestButtons.PauseButton:
+            self.pause()
+        elif button == RequestButtons.NextButton:
+            self.next()
+        elif button == RequestButtons.PreviousButton:
+            self.previous()
+        elif button in self.button_mapping:
+            self.play(link=self.button_mapping[button])
+        else:
+            print(f'ERROR: no mapping to {button} for spotify player', end='\r\n')
 
     def progress(self):
         now = time.time()

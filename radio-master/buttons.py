@@ -7,6 +7,10 @@ class EffectButtons(str, Enum):
     Bass = "bass"
     Orchestra = "orchestra"
 class RequestButtons(str, Enum):
+    PlayButton = "play",
+    PauseButton = "pause",
+    NextButton = "next",
+    PreviousButton = "prev",
     Button1 = "button1"
     Button2 = "button2"
     Button3 = "button3"

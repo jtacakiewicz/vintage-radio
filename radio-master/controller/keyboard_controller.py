@@ -10,7 +10,7 @@ from buttons import EffectButtons
 
 class KeyboardController(IOController):
 
-    def __init__(self, device_name='vintage-radio', report_interval=10):
+    def __init__(self):
         super().__init__()
         self.active_requests = set()
         self.active_effects = set()
@@ -78,6 +78,10 @@ class KeyboardController(IOController):
                     self.mod1 = min(self.mod1 + 0.1, 1)
 
             req_mapping = {str(i): getattr(RequestButtons, f"Button{i}") for i in range(1, 10)}
+            req_mapping[','] = RequestButtons.PauseButton
+            req_mapping['.'] = RequestButtons.PlayButton
+            req_mapping['n'] = RequestButtons.NextButton
+            req_mapping['p'] = RequestButtons.PreviousButton
             
             if char in req_mapping:
                 self.active_requests.add(req_mapping[char])
