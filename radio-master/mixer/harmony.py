@@ -25,7 +25,7 @@ class HarmonizerEffect(Effect):
         self.ind = Phasor(freq=self.rate, phase=[0, 0.5])
 
         # Amplitude envelope for each head
-        self.win = Pointer(table=self.env, index=self.ind, mul=0.7)
+        self.win = Pointer(table=self.env, index=self.ind) #mul=0.7
 
         # Modulated delay lines (The core of Granular Pitch Shifting)
         # We apply the fader here to enable/disable the effect contribution
