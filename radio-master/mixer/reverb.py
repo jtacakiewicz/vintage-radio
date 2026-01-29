@@ -24,11 +24,11 @@ class ReverbEffect(Effect):
         self.all2 = Allpass(self.all1, delay=[0.0117, 0.0123], feedback=0.61)
         # Output stage with Brightness control and the Master Fader
         # mul=0.25 from your original script is combined with the fader
-        self.lowp = Tone(self.all2, freq=self.brightness, mul=0.25 * self.fader)
+        self.out = Tone(self.all2, freq=self.brightness, mul=self.fader)
 
     @property
     def output(self):
-        return self.lowp
+        return self.out
 
     def setInput(self, inp):
         if inp is None:

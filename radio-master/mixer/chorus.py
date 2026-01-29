@@ -16,24 +16,30 @@ class ChorusEffect(Effect):
         # Original parameters from your script
         self.freqs = [0.254, 0.465, 0.657, 0.879, 1.23, 1.342, 1.654, 1.879]
         self.cdelay = [0.0287, 0.0102, 0.0311, 0.01254, 0.0134, 0.01501, 0.02707, 0.0178]
-        self.adelay = [0.001, 0.0012, 0.0013, 0.0014, 0.0015, 0.0016, 0.002, 0.0023]
+        self.adelay = [0.002, 0.0022, 0.0023, 0.0024, 0.003, 0.0026, 0.004, 0.0033]
 
-        # Scaled LFOs
-        # We multiply original freqs and adelays by our scalers
-        self.lfos = Sine(freq=[f * self.rate_scaler for f in self.freqs], 
-                         mul=[a * self.depth_scaler for a in self.adelay], 
-                         add=self.cdelay)
+        # Evenly spaced phases 0 → 2π
+        import math
+        self.phases = [i * (2 * math.pi / len(self.freqs)) for i in range(len(self.freqs))]
+
+        # Scaled LFOs with phase offsets
+        self.lfos = Sine(
+            freq=[f * self.rate_scaler for f in self.freqs],
+            mul=[a * self.depth_scaler for a in self.adelay],
+            add=self.cdelay,
+            phase=self.phases
+        )
 
         # 8 Modulated delay lines
         # We apply the fader here to enable/disable the effect contribution
-        self.delays = Delay(self.internal_input, 
+        self.out = Delay(self.internal_input, 
                             delay=self.lfos, 
                             feedback=0.5, 
-                            mul=0.5 * self.fader)
+                            mul=self.fader)
 
     @property
     def output(self):
-        return self.delays
+        return self.out
 
     def setInput(self, inp):
         if inp is None:
