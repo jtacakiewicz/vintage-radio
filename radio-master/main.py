@@ -6,9 +6,13 @@ from mixer.flanger import FlangerEffect
 from mixer.chorus import ChorusEffect
 from mixer.reverb import ReverbEffect
 from buttons import EffectButtons
+import pulsectl
 
-last_effect = None
 sp = SpotifyPlayer()
+
+pulse = pulsectl.Pulse('volume-controller')
+sink = pulse.sink_list()[0]
+
 kc = KeyboardController()
 mx = Mixer()
 mx.addEffect(HarmonizerEffect, effect_type=EffectButtons.Voice)
@@ -27,7 +31,7 @@ def setEffectValue(v1, v2):
     mx.setValue1(v1)
     mx.setValue2(v2)
 
-kc.setVolumeCallback(lambda x, y: print(f"Volume: {y}", end="\r\n"))
+kc.setVolumeCallback(lambda _, vol: pulse.volume_set_all_chans(sink, vol))
 kc.setRequestCallback(lambda req: sp.switch(req))
 kc.setEffectCallback(setEffect)
 kc.setOptionalValueCallback(setEffectValue)
