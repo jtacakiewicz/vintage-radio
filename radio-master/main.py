@@ -1,5 +1,6 @@
 from players.spotify_player import SpotifyPlayer
 from controller.keyboard_controller import KeyboardController
+from controller.wiring_controller import WiringController
 from mixer.mixer import Mixer
 from mixer.harmony import HarmonizerEffect
 from mixer.flanger import FlangerEffect
@@ -13,7 +14,7 @@ sp = SpotifyPlayer()
 pulse = pulsectl.Pulse('volume-controller')
 sink = pulse.sink_list()[0]
 
-kc = KeyboardController()
+kc = WiringController()
 mx = Mixer()
 mx.addEffect(HarmonizerEffect, effect_type=EffectButtons.Voice)
 mx.addEffect(ReverbEffect, effect_type=EffectButtons.Jazz)
