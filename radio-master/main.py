@@ -17,19 +17,15 @@ mx.addEffect(FlangerEffect, effect_type=EffectButtons.Bass)
 mx.addEffect(ChorusEffect, effect_type=EffectButtons.Orchestra)
 
 def setEffect(e, active):
-    global last_effect
     print(f"Setting effect of {e} to {active}", end="\r\n")
     if active:
         mx.on(e)
-        last_effect = e
     else:
         mx.off(e)
 def setEffectValue(v1, v2):
-    global last_effect
-    if last_effect:
-        print(f"Values: {v1}, {v2}", end="\r\n")
-        mx.setValue1(last_effect, v1)
-        mx.setValue2(last_effect, v2)
+    print(f"Values: {v1}, {v2}", end="\r\n")
+    mx.setValue1(v1)
+    mx.setValue2(v2)
 
 kc.setVolumeCallback(lambda x, y: print(f"Volume: {y}", end="\r\n"))
 kc.setRequestCallback(lambda req: sp.switch(req))

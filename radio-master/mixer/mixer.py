@@ -37,7 +37,7 @@ class Mixer:
     def _repatch(self):
         """The core logic: reconnects the chain based on activation order."""
         current_source = self.input
-        for effect in self.active_order:
+        for effect, _ in self.active_order:
             effect.setInput(current_source)
             current_source = effect.output
         self.master.setInput(current_source)
@@ -46,21 +46,27 @@ class Mixer:
         if effect_type in self.effects:
             instance = self.effects[effect_type]
             instance.on()
-            self.active_order.append(instance)
+            self.active_order.append((instance, effect_type))
             self._repatch()
 
     def off(self, effect_type: EffectButtons):
         if effect_type in self.effects:
             instance = self.effects[effect_type]
             instance.off()
-            self.active_order.remove(instance)
+            self.active_order.remove((instance, effect_type))
             self._repatch()
 
-    def setValue1(self, effect_type: EffectButtons, v: float):
+    def setValue1(self, v: float, effect_type: EffectButtons = None):
+        if effect_type is None and len(self.active_order) > 0:
+            effect_type = self.active_order[-1][1]
+
         if effect_type in self.effects:
             self.effects[effect_type].setValue1(v)
 
-    def setValue2(self, effect_type: EffectButtons, v: float):
+    def setValue2(self, v: float, effect_type: EffectButtons = None ):
+        if effect_type is None and len(self.active_order) > 0:
+            effect_type = self.active_order[-1][1]
+
         if effect_type in self.effects:
             self.effects[effect_type].setValue2(v)
 
