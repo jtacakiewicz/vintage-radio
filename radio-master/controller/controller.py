@@ -20,7 +20,7 @@ class IOController(ABC):
         pass
 
     @abstractmethod
-    def setVolumeCallback(self, callback: Callable[[float, float], None]):
+    def setVolumeCallback(self, callback: Callable[[float], None]):
         """Set callback to volume change, arguments being the old volume level and new volume level."""
         pass
 
