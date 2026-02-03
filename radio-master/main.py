@@ -6,6 +6,7 @@ from mixer.harmony import HarmonizerEffect
 from mixer.flanger import FlangerEffect
 from mixer.chorus import ChorusEffect
 from mixer.reverb import ReverbEffect
+from mixer.bass import BassBoostEffect
 from buttons import EffectButtons
 import pulsectl
 import wiringpi
@@ -24,7 +25,8 @@ fd = wiringpi.wiringPiI2CSetupInterface(device, i2caddr)
 mx = Mixer()
 mx.addEffect(HarmonizerEffect, effect_type=EffectButtons.Voice)
 mx.addEffect(ReverbEffect, effect_type=EffectButtons.Jazz)
-mx.addEffect(FlangerEffect, effect_type=EffectButtons.Bass)
+mx.addEffect(FlangerEffect, effect_type=EffectButtons.Spatial3D)
+mx.addEffect(BassBoostEffect, effect_type=EffectButtons.Bass)
 mx.addEffect(ChorusEffect, effect_type=EffectButtons.Orchestra)
 
 def setEffect(e, active):
@@ -68,7 +70,8 @@ try:
         val_p4 = min( max( val_p4 , 0), 1)
         val_p3 = min( max( val_p3 , 0), 1)
         mx.setValue1(val_p5)
-        mx.setValue2(val_p4)
+        mx.setValue2(val_p3)
+        pulse.volume_set_all_chans(sink, val_p4)
 
         kc.update()
         wiringpi.delay(1)
