@@ -8,13 +8,14 @@
 CRGB leds[NUM_LEDS];
 
 #define NUM_ANALOGS 3
-uint8_t analogBuffer[NUM_ANALOGS] = {0, 0, 0}; // [Index, R, G, B]
+volatile uint8_t analogBuffer[NUM_ANALOGS * 2];
 volatile byte transmit_idx = 0;
 
-void requestEvent() {  
+void requestEvent() {
     TinyWireS.send(analogBuffer[transmit_idx]);
     transmit_idx++;
-    if (transmit_idx >= NUM_ANALOGS) transmit_idx = 0;
+    // Reset indeksu po wysłaniu całej paczki 6 bajtów
+    if (transmit_idx >= (NUM_ANALOGS * 2)) transmit_idx = 0;
 }
 
 void receiveEvent(uint8_t howMany) {
@@ -39,6 +40,16 @@ void receiveEvent(uint8_t howMany) {
     }
 }
 
+void updateAnalog(uint8_t bufferPos, uint8_t pin) {
+    analogRead(pin); // Odczyt "na pusto" dla stabilizacji multipleksera
+    delay(2);
+    int val = analogRead(pin);
+    
+    // Rozbicie na dwa bajty (Big Endian)
+    analogBuffer[bufferPos]     = (val >> 8) & 0xFF; // Starszy bajt (MSB)
+    analogBuffer[bufferPos + 1] = val & 0xFF;        // Młodszy bajt (LSB)
+}
+
 void setup() {
     FastLED.addLeds<NEOPIXEL, LED_DATA_PIN>(leds, NUM_LEDS);
     TinyWireS.begin(I2C_SLAVE_ADDRESS);
@@ -48,7 +59,7 @@ void setup() {
 
 void loop() {
     TinyWireS_stop_check();
-    analogBuffer[0] = analogRead(0);
-    analogBuffer[1] = analogRead(2);
-    analogBuffer[2] = analogRead(3);
+    updateAnalog(0, 0);
+    updateAnalog(2, 2);
+    updateAnalog(4, 3);
 }
