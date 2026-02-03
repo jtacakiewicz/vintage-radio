@@ -5,44 +5,51 @@ from .controller import IOController
 from buttons import RequestButtons
 from buttons import EffectButtons
 
-DEBOUNCE_MS = 150
+# Zmniejszony debounce, aby nie ignorować szybkich kliknięć
+DEBOUNCE_MS = 40 
 
 class WiringController(IOController):
 
-    def __init__(self, effect_buttons: Dict[int, EffectButtons] = None, request_buttons: Dict[int, RequestButtons] = None, i2c_dev: str = "/dev/i2c-0", i2c_addr: int = 0x35):
+    def __init__(self, effect_buttons: Dict[int, EffectButtons] = None, 
+                 request_buttons: Dict[int, RequestButtons] = None, 
+                 i2c_dev: str = "/dev/i2c-0", i2c_addr: int = 0x35):
         super().__init__()
+        
+        # Stan wewnętrzny
         self.active_requests = set()
         self.active_effects = set()
         self.volume = 0.5
         self.mod1 = 0.5
         self.mod2 = 0.5
 
+        # Callbacks
         self.volume_callback = None
         self.effect_callback = None
         self.effect_value_callback = None
         self.request_callback = None
 
-        # Setup GPIO
+        # Inicjalizacja sprzętu
         wiringpi.wiringPiSetupGpio()
-        
-        # Setup I2C
         self.i2c_fd = wiringpi.wiringPiI2CSetupInterface(i2c_dev, i2c_addr)
         if self.i2c_fd < 0:
-            print(f"Warning: Could not initialize I2C on {i2c_dev}")
+            print(f"BŁĄD: Nie można zainicjalizować I2C na {i2c_dev}")
 
+        # Mapowanie przycisków efektów
         if effect_buttons is None:
-            effect_buttons = {
+            self.effect_buttons = {
                 37: EffectButtons.Spatial3D,
                 39: EffectButtons.Jazz,
                 59: EffectButtons.Orchestra,
                 63: EffectButtons.Bass,
                 60: EffectButtons.Voice,
             }
-        
-        self.effect_buttons = effect_buttons
+        else:
+            self.effect_buttons = effect_buttons
+
+        # Mapowanie przycisków żądań (Request)
         if request_buttons is None:
-            request_buttons = {
-                50: RequestButtons.Button1,
+            self.request_buttons = {
+                50: RequestButtons.Button1, # Dopasuj nazwy do swojego Enuma
                 49: RequestButtons.Button2,
                 56: RequestButtons.Button3,
                 40: RequestButtons.Button4,
@@ -51,18 +58,22 @@ class WiringController(IOController):
                 61: RequestButtons.Button7,
                 44: RequestButtons.Button8,
             }
-        self.request_buttons = request_buttons
+        else:
+            self.request_buttons = request_buttons
 
-        # Inicjalizacja stanów pinów
+        # Struktury do debouncingu i wykrywania zboczy
         self.last_state = {}
         self.stable_state = {}
         self.last_change_time = {}
         
-        for pin in [*self.request_buttons.keys(), *self.effect_buttons.keys()]:
+        all_pins = list(self.request_buttons.keys()) + list(self.effect_buttons.keys())
+        
+        for pin in all_pins:
             wiringpi.pinMode(pin, wiringpi.GPIO.INPUT)
             wiringpi.pullUpDnControl(pin, wiringpi.GPIO.PUD_UP)
-            self.last_state[pin] = wiringpi.digitalRead(pin)
-            self.stable_state[pin] = self.last_state[pin]
+            initial_val = wiringpi.digitalRead(pin)
+            self.last_state[pin] = initial_val
+            self.stable_state[pin] = initial_val
             self.last_change_time[pin] = int(time.time() * 1000)
 
     def setRequestCallback(self, callback: Callable[[RequestButtons], None]):
@@ -77,88 +88,104 @@ class WiringController(IOController):
     def setVolumeCallback(self, callback: Callable[[float], None]):
         self.volume_callback = callback
 
-    def _process_pin(self, pin: int):
+    def _process_pin_event(self, pin: int) -> bool:
+        """
+        Zwraca True tylko wtedy, gdy wykryto stabilne naciśnięcie (zbocze opadające).
+        Używane dla Requestów, by nie ignorować kliknięć.
+        """
         current_state = wiringpi.digitalRead(pin)
         now = int(time.time() * 1000)
+        is_click = False
 
         if current_state != self.last_state[pin]:
             self.last_change_time[pin] = now
             self.last_state[pin] = current_state
 
-        if self.stable_state[pin] != self.last_state[pin] and (now - self.last_change_time[pin]) > DEBOUNCE_MS:
-            self.stable_state[pin] = self.last_state[pin]
+        if (now - self.last_change_time[pin]) > DEBOUNCE_MS:
+            if self.stable_state[pin] != current_state:
+                # Jeśli zmiana ze stanu wysokiego (1) na niski (0) -> kliknięcie
+                if self.stable_state[pin] == 1 and current_state == 0:
+                    is_click = True
+                self.stable_state[pin] = current_state
+        
+        return is_click
 
     def _update_analogs(self):
+        """Odczyt i skalowanie potencjometrów przez I2C"""
         if self.i2c_fd < 0: return
 
-        # Trigger odczytu na ATtiny i reset pointera
+        # Dummy write, by zresetować wskaźnik w ATtiny
         wiringpi.wiringPiI2CWrite(self.i2c_fd, 0)
         wiringpi.delay(1)
 
-        raw_data = []
+        raw = []
         for _ in range(6):
-            raw_data.append(wiringpi.wiringPiI2CRead(self.i2c_fd))
+            raw.append(wiringpi.wiringPiI2CRead(self.i2c_fd))
 
-        # Kalibracja zgodnie z Twoimi pomiarami
-        p5_min, p5_max = 804, 1023
-        p4_min, p4_max = 0, 975
-        p3_min, p3_max = 605, 935
+        # Zakresy kalibracji podane przez Ciebie
+        ranges = {
+            'p5': (804, 1023), # Mod 1
+            'p4': (0, 975),   # Volume
+            'p3': (605, 935)   # Mod 2
+        }
 
-        # Obliczanie wartości 0.0 - 1.0
-        def scale(raw, v_min, v_max):
-            val = ((raw[0] << 8) | raw[1])
+        def scale(msb, lsb, v_min, v_max):
+            val = (msb << 8) | lsb
             res = (val - v_min) / (v_max - v_min)
             return min(max(res, 0.0), 1.0)
 
-        self.mod1 = scale(raw_data[0:2], p5_min, p5_max)  # P5
-        self.volume = scale(raw_data[2:4], p4_min, p4_max) # P4
-        self.mod2 = scale(raw_data[4:6], p3_min, p3_max)  # P3
+        self.mod1 = scale(raw[0], raw[1], *ranges['p5'])
+        self.volume = scale(raw[2], raw[3], *ranges['p4'])
+        self.mod2 = scale(raw[4], raw[5], *ranges['p3'])
 
     def update(self):
-        old_req = set(self.active_requests)
+        # Zapamiętanie starych stanów do porównania (histereza)
         old_effects = set(self.active_effects)
         old_volume = self.volume
         old_mods = (self.mod1, self.mod2)
 
-        # 1. Odczyt analogów przez I2C
+        # 1. Aktualizacja potencjometrów
         self._update_analogs()
 
-        # 2. Odczyt przycisków
-        for pin, effect in self.effect_buttons.items():
-            self._process_pin(pin)
-            if not self.stable_state[pin]: # 0 = Pressed
-                self.active_effects.add(effect)
-            elif effect in self.active_effects:
-                self.active_effects.remove(effect)
-
+        # 2. Przetwarzanie Requestów (Zasada zdarzeniowa / Edge Detection)
         for pin, req in self.request_buttons.items():
-            self._process_pin(pin)
-            if not self.stable_state[pin]:
-                self.active_requests.add(req)
+            if self._process_pin_event(pin):
+                if self.request_callback:
+                    self.request_callback(req)
 
-        # 3. Wywołanie callbacków (tylko jeśli nastąpiła zmiana)
+        # 3. Przetwarzanie Efektów (Zasada ciągła / Hold)
+        for pin, effect in self.effect_buttons.items():
+            # Aktualizujemy stable_state dla pinów efektów (bez zwracania zdarzenia)
+            self._process_pin_event(pin) 
+            if self.stable_state[pin] == 0: # Wciśnięty
+                self.active_effects.add(effect)
+            else: # Puszczony
+                if effect in self.active_effects:
+                    self.active_effects.remove(effect)
+
+        # 4. Wywołanie pozostałych callbacków przy zmianie
+        
+        # Głośność (próg zmiany 1%)
         if self.volume_callback and abs(old_volume - self.volume) > 0.01:
             self.volume_callback(self.volume)
 
+        # Modulatory (P5 i P3)
         if self.effect_value_callback and (abs(old_mods[0] - self.mod1) > 0.01 or abs(old_mods[1] - self.mod2) > 0.01):
             self.effect_value_callback(self.mod1, self.mod2)
 
-        if self.request_callback and old_req != self.active_requests:
-            new_reqs = self.active_requests - old_req
-            for r in new_reqs:
-                self.request_callback(r)
-
+        # Przełączniki efektów (On/Off)
         if self.effect_callback and old_effects != self.active_effects:
             added = self.active_effects - old_effects
             for e in added: self.effect_callback(e, True)
-            
             deleted = old_effects - self.active_effects
             for e in deleted: self.effect_callback(e, False)
 
     def run_loop(self):
+        print("Kontroler WiringController uruchomiony.")
         try:
             while True:
                 self.update()
-                wiringpi.delay(5) # Zwiększyłem odrobinę, by nie obciążać CPU i I2C
+                # Mały delay, by nie zająć 100% CPU i dać czas I2C
+                wiringpi.delay(1) 
         except KeyboardInterrupt:
-            print("\nExiting controller")
+            print("\nZamykanie kontrolera...")
