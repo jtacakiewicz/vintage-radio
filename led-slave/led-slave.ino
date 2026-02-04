@@ -2,7 +2,7 @@
 #include <FastLED.h>
 
 #define I2C_SLAVE_ADDRESS 0x35
-#define NUM_LEDS 20
+#define NUM_LEDS 100
 #define LED_DATA_PIN 1
 
 CRGB leds[NUM_LEDS];
@@ -10,6 +10,9 @@ CRGB leds[NUM_LEDS];
 #define NUM_ANALOGS 3
 volatile uint8_t analogBuffer[NUM_ANALOGS * 2];
 volatile byte transmit_idx = 0;
+
+// Timer variable
+unsigned long lastAnalogUpdate = 0;
 
 void requestEvent() {
     TinyWireS.send(analogBuffer[transmit_idx]);
@@ -42,7 +45,6 @@ void receiveEvent(uint8_t howMany) {
 
 void updateAnalog(uint8_t bufferPos, uint8_t pin) {
     analogRead(pin); // Odczyt "na pusto" dla stabilizacji multipleksera
-    delay(2);
     int val = analogRead(pin);
     
     // Rozbicie na dwa bajty (Big Endian)
@@ -52,6 +54,7 @@ void updateAnalog(uint8_t bufferPos, uint8_t pin) {
 
 void setup() {
     FastLED.addLeds<NEOPIXEL, LED_DATA_PIN>(leds, NUM_LEDS);
+    FastLED.setBrightness(64);
     TinyWireS.begin(I2C_SLAVE_ADDRESS);
     TinyWireS.onReceive(receiveEvent);
     TinyWireS.onRequest(requestEvent);
@@ -59,7 +62,11 @@ void setup() {
 
 void loop() {
     TinyWireS_stop_check();
-    updateAnalog(0, 0);
-    updateAnalog(2, 2);
-    updateAnalog(4, 3);
+    // Only update analogs every 50ms to keep CPU free for I2C
+    if (millis() - lastAnalogUpdate > 50) {
+        updateAnalog(0, 0);
+        updateAnalog(2, 2);
+        updateAnalog(4, 3);
+        lastAnalogUpdate = millis();
+    }
 }

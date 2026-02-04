@@ -182,7 +182,7 @@ class WiringController(IOController):
 
     def _send_led_packet(self, index: int, color_id: int, value: int):
         if self.i2c_fd < 0: return
-        data = (color_id << 8) | (value & 0xFF)
+        data = (value << 8) | (color_id & 0xFF)
         wiringpi.wiringPiI2CWriteReg16(self.i2c_fd, index, data)
 
     def setStrip1(self, pct: float, r: int, g: int, b: int):
@@ -198,9 +198,6 @@ class WiringController(IOController):
                 self._send_led_packet(i, 0, 0)
                 self._send_led_packet(i, 1, 0)
                 self._send_led_packet(i, 2, 0)
-        
-        # Trigger FastLED.show()
-        self._send_led_packet(255, 0, 0)
 
     def setStrip2(self, pct: float, r: int, g: int, b: int):
         start, end = 41, 90
@@ -216,7 +213,7 @@ class WiringController(IOController):
                 self._send_led_packet(i, 1, 0)
                 self._send_led_packet(i, 2, 0)
         
-        # Trigger FastLED.show()
+    def flushStrips(self):
         self._send_led_packet(255, 0, 0)
 
     def run_loop(self):

@@ -46,6 +46,7 @@ def setEffectValue(v1, v2):
 
 def setVolume(vol):
     global last_vol
+    print(last_vol, end="\r\n")
     last_vol = vol
     pulse.volume_set_all_chans(sink, vol)
 
@@ -57,7 +58,7 @@ try:
     while True:
         kc.update()
         kc.setStrip1(last_vol, 255, 255, 255)
-        kc.setStrip2(last_vol, 255, 255, 255)
+        kc.flushStrips()
         wiringpi.delay(1) 
 except KeyboardInterrupt:
     print("\nZamykanie kontrolera...")
