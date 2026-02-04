@@ -19,6 +19,7 @@ sp = SpotifyPlayer()
 pulse = pulsectl.Pulse('volume-controller')
 sink = pulse.sink_list()[0]
 
+last_vol = 0
 kc = WiringController()
 fd = wiringpi.wiringPiI2CSetupInterface(device, i2caddr)
 
@@ -43,8 +44,20 @@ def setEffectValue(v1, v2):
     mx.setValue1(v1)
     mx.setValue2(v2)
 
-kc.setVolumeCallback(lambda vol: pulse.volume_set_all_chans(sink, vol))
+def setVolume(vol):
+    global last_vol
+    last_vol = vol
+    pulse.volume_set_all_chans(sink, vol)
+
+kc.setVolumeCallback(setVolume)
 kc.setRequestCallback(setRequest)
 kc.setEffectCallback(setEffect)
 kc.setOptionalValueCallback(setEffectValue)
-kc.run_loop()
+try:
+    while True:
+        kc.update()
+        kc.setStrip1(last_vol, 255, 255, 255)
+        kc.setStrip2(last_vol, 255, 255, 255)
+        wiringpi.delay(1) 
+except KeyboardInterrupt:
+    print("\nZamykanie kontrolera...")

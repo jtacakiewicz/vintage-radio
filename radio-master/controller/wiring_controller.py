@@ -180,6 +180,45 @@ class WiringController(IOController):
             deleted = old_effects - self.active_effects
             for e in deleted: self.effect_callback(e, False)
 
+    def _send_led_packet(self, index: int, color_id: int, value: int):
+        if self.i2c_fd < 0: return
+        data = (color_id << 8) | (value & 0xFF)
+        wiringpi.wiringPiI2CWriteReg16(self.i2c_fd, index, data)
+
+    def setStrip1(self, pct: float, r: int, g: int, b: int):
+        start, end = 0, 40
+        num_on = int(pct * (end - start + 1))
+        
+        for i in range(start, end + 1):
+            if (i - start) < num_on:
+                self._send_led_packet(i, 0, r) # Red
+                self._send_led_packet(i, 1, g) # Green
+                self._send_led_packet(i, 2, b) # Blue
+            else:
+                self._send_led_packet(i, 0, 0)
+                self._send_led_packet(i, 1, 0)
+                self._send_led_packet(i, 2, 0)
+        
+        # Trigger FastLED.show()
+        self._send_led_packet(255, 0, 0)
+
+    def setStrip2(self, pct: float, r: int, g: int, b: int):
+        start, end = 41, 90
+        num_on = int(pct * (end - start + 1))
+        
+        for i in range(start, end + 1):
+            if (i - start) < num_on:
+                self._send_led_packet(i, 0, r)
+                self._send_led_packet(i, 1, g)
+                self._send_led_packet(i, 2, b)
+            else:
+                self._send_led_packet(i, 0, 0)
+                self._send_led_packet(i, 1, 0)
+                self._send_led_packet(i, 2, 0)
+        
+        # Trigger FastLED.show()
+        self._send_led_packet(255, 0, 0)
+
     def run_loop(self):
         print("Kontroler WiringController uruchomiony.")
         try:
