@@ -46,8 +46,9 @@ def setEffectValue(v1, v2):
 
 def setVolume(vol):
     global last_vol
-    last_vol = vol
     pulse.volume_set_all_chans(sink, vol)
+    kc.setStrip1(last_vol, 127, 127, 127)
+    last_vol = vol
 
 kc.setVolumeCallback(setVolume)
 kc.setRequestCallback(setRequest)
@@ -56,7 +57,6 @@ kc.setOptionalValueCallback(setEffectValue)
 try:
     while True:
         kc.update()
-        kc.setStrip1(last_vol, 255, 255, 255)
         kc.flushStrips()
         wiringpi.delay(1) 
 except KeyboardInterrupt:

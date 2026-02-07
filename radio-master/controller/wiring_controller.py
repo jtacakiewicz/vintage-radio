@@ -186,7 +186,7 @@ class WiringController(IOController):
         wiringpi.wiringPiI2CWriteReg16(self.i2c_fd, index, data)
 
     def setStrip1(self, pct: float, r: int, g: int, b: int):
-        start, end = 0, 40
+        start, end = 0, 46
         num_on = int(pct * (end - start + 1))
         
         for i in range(start, end + 1):
@@ -200,7 +200,7 @@ class WiringController(IOController):
                 self._send_led_packet(i, 2, 0)
 
     def setStrip2(self, pct: float, r: int, g: int, b: int):
-        start, end = 41, 90
+        start, end = 47, 92
         num_on = int(pct * (end - start + 1))
         
         for i in range(start, end + 1):
