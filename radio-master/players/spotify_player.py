@@ -26,6 +26,7 @@ class SpotifyPlayer(MusicPlayer):
         self.report_interval = report_interval
         self.next_report = time.time()
         self.sp.transfer_playback(self.device_id)
+        self.sp.volume(volume_percent=100, device_id=self.device_id)
         self.info = None
 
         self.button_mapping = {

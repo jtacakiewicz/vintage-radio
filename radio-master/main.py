@@ -46,7 +46,6 @@ def setEffectValue(v1, v2):
 
 def setVolume(vol):
     global last_vol
-    print(last_vol, end="\r\n")
     last_vol = vol
     pulse.volume_set_all_chans(sink, vol)
 
