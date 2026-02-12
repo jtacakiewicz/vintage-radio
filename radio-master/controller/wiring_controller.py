@@ -6,6 +6,9 @@ from buttons import RequestButtons
 from buttons import EffectButtons
 
 DEBOUNCE_MS = 40 
+ANALOG_SMOOTH_ALPHA = 0.15
+ANALOG_SMOOTH_ALPHA_VOLUME = 0.40
+ANALOG_DEADZONE = 0.05
 
 class WiringController(IOController):
 
@@ -19,6 +22,11 @@ class WiringController(IOController):
         self.volume = 0.5
         self.mod1 = 0.5
         self.mod2 = 0.5
+        self.old_volume = self.volume
+        self.filt_volume = self.volume
+        self.filt_mod1 = self.mod1
+        self.filt_mod2 = self.mod2
+        self.old_mods = (self.mod1, self.mod2)
 
         self.volume_callback = None
         self.effect_callback = None
@@ -125,14 +133,21 @@ class WiringController(IOController):
             res = (val - v_min) / (v_max - v_min)
             return min(max(res, 0.0), 1.0)
 
-        self.mod1 = scale(raw[0], raw[1], *ranges['p5'])
-        self.volume = scale(raw[2], raw[3], *ranges['p4'])
-        self.mod2 = scale(raw[4], raw[5], *ranges['p3'])
+        raw_mod1 = scale(raw[0], raw[1], *ranges['p5'])
+        raw_volume = scale(raw[2], raw[3], *ranges['p4'])
+        raw_mod2 = scale(raw[4], raw[5], *ranges['p3'])
+
+        self.filt_mod1 = (ANALOG_SMOOTH_ALPHA * raw_mod1) + ((1 - ANALOG_SMOOTH_ALPHA) * self.filt_mod1)
+        self.filt_volume = (ANALOG_SMOOTH_ALPHA_VOLUME * raw_volume) + ((1 - ANALOG_SMOOTH_ALPHA_VOLUME) * self.filt_volume)
+        self.filt_mod2 = (ANALOG_SMOOTH_ALPHA * raw_mod2) + ((1 - ANALOG_SMOOTH_ALPHA) * self.filt_mod2)
+
+        self.mod1 = self.filt_mod1
+        self.volume = self.filt_volume
+        self.mod2 = self.filt_mod2
+
 
     def update(self):
         old_effects = set(self.active_effects)
-        old_volume = self.volume
-        old_mods = (self.mod1, self.mod2)
 
         self._update_analogs()
 
@@ -152,10 +167,12 @@ class WiringController(IOController):
                 if effect in self.active_effects:
                     self.active_effects.remove(effect)
         
-        if self.volume_callback and abs(old_volume - self.volume) > 0.01:
+        if self.volume_callback and abs(self.old_volume - self.volume) > 0.015:
+            self.old_volume = self.volume
             self.volume_callback(self.volume)
 
-        if self.effect_value_callback and (abs(old_mods[0] - self.mod1) > 0.01 or abs(old_mods[1] - self.mod2) > 0.01):
+        if self.effect_value_callback and (abs(self.old_mods[0] - self.mod1) > ANALOG_DEADZONE or abs(self.old_mods[1] - self.mod2) > ANALOG_DEADZONE):
+            self.old_mods = (self.mod1, self.mod2)
             self.effect_value_callback(self.mod1, self.mod2)
 
         if self.effect_callback and old_effects != self.active_effects:
