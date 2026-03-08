@@ -17,9 +17,11 @@ i2caddr = 0x35
 LED_MODE_VOLUME = 0
 LED_MODE_EFFECT = 1
 effect_timeout_ms = 5000
+progress_time_ms = 250
 
 led_mode = LED_MODE_VOLUME
 last_effect_change = 0
+last_show_progress = 0
 
 sp = SpotifyPlayer()
 
@@ -61,12 +63,12 @@ def setEffectValue(v1, v2):
     mx.setValue2(v2)
 
 def setVolume(vol):
-    global led_mode, last_vol
+    global led_mode, last_vol, last_effect_change
     pulse.volume_set_all_chans(sink, vol)
+    last_effect_change -= effect_timeout_ms
 
     led_mode = LED_MODE_VOLUME
     kc.setStrip1(vol, 127, 127, 127)
-    kc.setStrip2(vol, 127, 127, 127)
     last_vol = vol
 
 def setRotate(rot):
@@ -82,11 +84,11 @@ try:
         kc.update()
 
         now = int(time.time() * 1000)
-        if led_mode == LED_MODE_EFFECT:
-            if (now - last_effect_change) > effect_timeout_ms:
-                led_mode = LED_MODE_VOLUME
-                kc.setStrip1(last_vol, 127, 127, 127)
-                kc.setStrip2(last_vol, 127, 127, 127)
+        if led_mode == LED_MODE_EFFECT and (now - last_effect_change) > effect_timeout_ms:
+            led_mode = LED_MODE_VOLUME
+            kc.setStrip1(last_vol, 127, 127, 127)
+        elif led_mode == LED_MODE_VOLUME and (now - last_show_progress) > progress_time_ms:
+            kc.setStrip2(sp.progress(), 127, 127, 127)
 
         kc.flushStrips()
         wiringpi.delay(1)

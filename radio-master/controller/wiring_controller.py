@@ -224,33 +224,38 @@ class WiringController(IOController):
         data = (value << 8) | (color_id & 0xFF)
         wiringpi.wiringPiI2CWriteReg16(self.i2c_fd, index, data)
 
-    def setStrip1(self, pct: float, r: int, g: int, b: int):
-        start, end = 0, 46
-        num_on = int(pct * (end - start + 1))
-        
+    def _update_strip(self, start, end, pct, r, g, b, reverse=False):
+        length = end - start + 1
+        # The exact number of LEDs that should be "weighted" as ON
+        precise_num_on = pct * length
+
         for i in range(start, end + 1):
-            if (i - start) < num_on:
-                self._send_led_packet(i, 0, r) # Red
-                self._send_led_packet(i, 1, g) # Green
-                self._send_led_packet(i, 2, b) # Blue
+            # Calculate distance from the 'start' of the fill
+            # Strip 1 fills 0 -> 46, Strip 2 fills 92 -> 47
+            distance = (end - i) if reverse else (i - start)
+
+            if distance < int(precise_num_on):
+                # Full brightness for fully covered pixels
+                self._send_led_packet(i, 0, r)
+                self._send_led_packet(i, 1, g)
+                self._send_led_packet(i, 2, b)
+            elif distance < precise_num_on:
+                # Fractional brightness for the "edge" pixel
+                fraction = precise_num_on - int(precise_num_on)
+                self._send_led_packet(i, 0, int(r * fraction))
+                self._send_led_packet(i, 1, int(g * fraction))
+                self._send_led_packet(i, 2, int(b * fraction))
             else:
+                # Off
                 self._send_led_packet(i, 0, 0)
                 self._send_led_packet(i, 1, 0)
                 self._send_led_packet(i, 2, 0)
 
+    def setStrip1(self, pct: float, r: int, g: int, b: int):
+        self._update_strip(0, 46, pct, r, g, b, reverse=False)
+
     def setStrip2(self, pct: float, r: int, g: int, b: int):
-        start, end = 47, 92
-        num_on = int(pct * (end - start + 1))
-        
-        for i in range(start, end + 1):
-            if (i - start) < num_on:
-                self._send_led_packet(i, 0, r)
-                self._send_led_packet(i, 1, g)
-                self._send_led_packet(i, 2, b)
-            else:
-                self._send_led_packet(i, 0, 0)
-                self._send_led_packet(i, 1, 0)
-                self._send_led_packet(i, 2, 0)
+        self._update_strip(47, 92, pct, r, g, b, reverse=True)
         
     def flushStrips(self):
         self._send_led_packet(255, 0, 0)
