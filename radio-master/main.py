@@ -69,10 +69,14 @@ def setVolume(vol):
     kc.setStrip2(vol, 127, 127, 127)
     last_vol = vol
 
+def setRotate(rot):
+    print(f"Rotation: {rot}", end="\n\r")
+
 kc.setVolumeCallback(setVolume)
 kc.setRequestCallback(setRequest)
 kc.setEffectCallback(setEffect)
 kc.setOptionalValueCallback(setEffectValue)
+kc.setEncoderRotateCallback(setRotate)
 try:
     while True:
         kc.update()

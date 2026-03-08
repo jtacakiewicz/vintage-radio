@@ -76,6 +76,18 @@ class WiringController(IOController):
             self.last_state[pin] = initial_val
             self.stable_state[pin] = initial_val
             self.last_change_time[pin] = int(time.time() * 1000)
+        self.rotate_callback = None
+        self.ENC_A = 52
+        self.ENC_B = 53
+        self.ENC_SW = 48
+
+        for pin in [self.ENC_A, self.ENC_B, self.ENC_SW]:
+            wiringpi.pinMode(pin, wiringpi.GPIO.INPUT)
+            wiringpi.pullUpDnControl(pin, wiringpi.GPIO.PUD_UP)
+
+        self.prev_a_state = wiringpi.digitalRead(self.ENC_A)
+        self.encoder_subticks = 0
+        self.TICK_THRESHOLD = 2 # Adjusted for polling stability
 
     def setRequestCallback(self, callback: Callable[[RequestButtons], None]):
         self.request_callback = callback
@@ -110,6 +122,31 @@ class WiringController(IOController):
                 self.stable_state[pin] = current_state
         
         return is_click
+
+    def setEncoderRotateCallback(self, callback: Callable[[int], None]):
+        """Callback receives +1 for clockwise, -1 for counter-clockwise"""
+        self.rotate_callback = callback
+
+    def _poll_encoder(self):
+        current_a = wiringpi.digitalRead(self.ENC_A)
+        
+        # Detect a FALLING EDGE (Transition from 1 to 0)
+        if self.prev_a_state == 1 and current_a == 0:
+            state_b = wiringpi.digitalRead(self.ENC_B)
+            
+            # If B is high during A's falling edge, it's one direction
+            direction = 1 if state_b == 1 else -1
+            self.encoder_subticks += direction
+            
+            if abs(self.encoder_subticks) >= self.TICK_THRESHOLD:
+                final_dir = 1 if self.encoder_subticks > 0 else -1
+                self.encoder_subticks = 0
+                if self.rotate_callback:
+                    self.rotate_callback(final_dir)
+                print(f"Polling Encoder: {final_dir}")
+
+        self.prev_a_state = current_a
+
 
     def _update_analogs(self):
         """Odczyt i skalowanie potencjometrów przez I2C"""
@@ -150,6 +187,7 @@ class WiringController(IOController):
         old_effects = set(self.active_effects)
 
         self._update_analogs()
+        self._poll_encoder()
 
         for pin, req in self.request_buttons.items():
             if self._process_pin_event(pin):
