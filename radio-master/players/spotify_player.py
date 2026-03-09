@@ -58,10 +58,10 @@ class SpotifyPlayer(MusicPlayer):
         self.sp.start_playback(device_id=self.device_id, context_uri=link)
 
     def next(self):
-        self.sp.next_track(device_id=self.device_id)
+        return self.sp.next_track(device_id=self.device_id)
 
     def previous(self):
-        self.sp.previous_track(device_id=self.device_id)
+        return self.sp.previous_track(device_id=self.device_id)
 
     def switch(self, button: RequestButtons):
         if button == RequestButtons.PlayButton:
@@ -91,6 +91,19 @@ class SpotifyPlayer(MusicPlayer):
         time_left = total_time - cur_time
         self.next_report = min(now + time_left, self.last_asked + self.report_interval)
         return cur_time / total_time
+
+    def album_progress(self):
+        self.info = self.sp.currently_playing()
+
+        if not self.info or self.info.get('item') is None:
+            return 0.0
+
+        # Extract track metadata
+        current_idx = self.info['item']['track_number']  # e.g., 3
+        total_tracks = self.info['item']['album']['total_tracks'] # e.g., 12
+
+        # Return as a percentage for your setStrip functions
+        return current_idx / total_tracks
 
     def seek(self, time: float):
         info = self.sp.currently_playing()

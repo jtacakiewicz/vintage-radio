@@ -63,6 +63,7 @@ class WiringController(IOController):
         else:
             self.request_buttons = request_buttons
 
+        self.cache = {}
         self.last_state = {}
         self.stable_state = {}
         self.last_change_time = {}
@@ -76,6 +77,9 @@ class WiringController(IOController):
             self.last_state[pin] = initial_val
             self.stable_state[pin] = initial_val
             self.last_change_time[pin] = int(time.time() * 1000)
+            
+        self._led_cache = [[[-1, 0] for _ in range(3)] for _ in range(100)]
+        self.LED_RETRANSMIT_INTERVAL = 0.5
         self.rotate_callback = None
         self.ENC_A = 52
         self.ENC_B = 53
@@ -85,9 +89,18 @@ class WiringController(IOController):
             wiringpi.pinMode(pin, wiringpi.GPIO.INPUT)
             wiringpi.pullUpDnControl(pin, wiringpi.GPIO.PUD_UP)
 
-        self.prev_a_state = wiringpi.digitalRead(self.ENC_A)
         self.encoder_subticks = 0
-        self.TICK_THRESHOLD = 2 # Adjusted for polling stability
+        self.TICK_THRESHOLD = 3 # Adjusted for polling stability
+
+        self.last_encoder_state = 0
+        # Transition table: [old_state << 2 | new_state]
+        # 1 = Clockwise, -1 = Counter-Clockwise, 0 = No move/Invalid
+        self.TRANSITIONS = [
+            0, -1,  1,  0,  # 00 -> 00, 01, 10, 11 (11 is illegal)
+            1,  0,  0, -1,  # 01 -> 00, 01, 10, 11 (10 is illegal)
+           -1,  0,  0,  1,  # 10 -> 00, 01, 10, 11 (01 is illegal)
+            0,  1, -1,  0   # 11 -> 00, 01, 10, 11 (00 is illegal)
+        ]
 
     def setRequestCallback(self, callback: Callable[[RequestButtons], None]):
         self.request_callback = callback
@@ -127,25 +140,27 @@ class WiringController(IOController):
         """Callback receives +1 for clockwise, -1 for counter-clockwise"""
         self.rotate_callback = callback
 
-    def _poll_encoder(self):
-        current_a = wiringpi.digitalRead(self.ENC_A)
-        
-        # Detect a FALLING EDGE (Transition from 1 to 0)
-        if self.prev_a_state == 1 and current_a == 0:
-            state_b = wiringpi.digitalRead(self.ENC_B)
-            
-            # If B is high during A's falling edge, it's one direction
-            direction = 1 if state_b == 1 else -1
-            self.encoder_subticks += direction
-            
-            if abs(self.encoder_subticks) >= self.TICK_THRESHOLD:
-                final_dir = 1 if self.encoder_subticks > 0 else -1
-                self.encoder_subticks = 0
-                if self.rotate_callback:
-                    self.rotate_callback(final_dir)
-                print(f"Polling Encoder: {final_dir}")
 
-        self.prev_a_state = current_a
+    def _poll_encoder(self):
+        a = wiringpi.digitalRead(self.ENC_A)
+        b = wiringpi.digitalRead(self.ENC_B)
+        
+        current_state = (a << 1) | b
+        
+        if current_state != self.last_encoder_state:
+            index = (self.last_encoder_state << 2) | current_state
+            direction = self.TRANSITIONS[index]
+            if direction != 0:
+                self.encoder_subticks += direction
+            
+                if abs(self.encoder_subticks) >= self.TICK_THRESHOLD:
+                    final_dir = -1 if self.encoder_subticks > 0 else 1
+                    self.encoder_subticks = 0
+                    
+                    if self.rotate_callback:
+                        self.rotate_callback(final_dir)
+            
+            self.last_encoder_state = current_state
 
 
     def _update_analogs(self):
@@ -153,7 +168,6 @@ class WiringController(IOController):
         if self.i2c_fd < 0: return
 
         wiringpi.wiringPiI2CWrite(self.i2c_fd, 0)
-        wiringpi.delay(1)
 
         raw = []
         for _ in range(6):
@@ -188,6 +202,7 @@ class WiringController(IOController):
 
         self._update_analogs()
         self._poll_encoder()
+        self._refresh_stale_leds()
 
         for pin, req in self.request_buttons.items():
             if self._process_pin_event(pin):
@@ -219,10 +234,31 @@ class WiringController(IOController):
             deleted = old_effects - self.active_effects
             for e in deleted: self.effect_callback(e, False)
 
-    def _send_led_packet(self, index: int, color_id: int, value: int):
+    def _send_led_packet(self, index: int, color_id: int, value: int, force=False):
         if self.i2c_fd < 0: return
+        now = time.time()
+
+        if not force:
+            cached_val, last_sent = self._led_cache[index][color_id]
+            if not force and cached_val == value and (now - last_sent) < self.LED_RETRANSMIT_INTERVAL:
+                return
+
+        if index < 100:
+            self._led_cache[index][color_id] = [value, now]
         data = (value << 8) | (color_id & 0xFF)
         wiringpi.wiringPiI2CWriteReg16(self.i2c_fd, index, data)
+
+    def _refresh_stale_leds(self, limit=2):
+        count = 0
+        now = time.time()
+        
+        for i in range(100):
+            for channel in range(3):
+                val, last_sent = self._led_cache[i][channel]
+                if (now - last_sent) > self.LED_RETRANSMIT_INTERVAL:
+                    self._send_led_packet(i, channel, val, force=True)
+                    count += 1
+                    if count >= limit: return
 
     def _update_strip(self, start, end, pct, r, g, b, reverse=False):
         length = end - start + 1
@@ -240,7 +276,6 @@ class WiringController(IOController):
                 self._send_led_packet(i, 1, g)
                 self._send_led_packet(i, 2, b)
             elif distance < precise_num_on:
-                # Fractional brightness for the "edge" pixel
                 fraction = precise_num_on - int(precise_num_on)
                 self._send_led_packet(i, 0, int(r * fraction))
                 self._send_led_packet(i, 1, int(g * fraction))
@@ -258,7 +293,7 @@ class WiringController(IOController):
         self._update_strip(47, 92, pct, r, g, b, reverse=True)
         
     def flushStrips(self):
-        self._send_led_packet(255, 0, 0)
+        self._send_led_packet(255, 0, 0, force=True)
 
     def run_loop(self):
         print("Kontroler WiringController uruchomiony.")

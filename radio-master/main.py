@@ -16,12 +16,16 @@ device = "/dev/i2c-0"
 i2caddr = 0x35
 LED_MODE_VOLUME = 0
 LED_MODE_EFFECT = 1
+LED_MODE_SELECT = 2
 effect_timeout_ms = 5000
+select_timeout_ms = 2000
 progress_time_ms = 250
+album_progress = 0
 
 led_mode = LED_MODE_VOLUME
 last_effect_change = 0
-last_show_progress = 0
+last_select_change = 0
+last_show_progress = time.time() * 1000
 
 sp = SpotifyPlayer()
 
@@ -63,16 +67,31 @@ def setEffectValue(v1, v2):
     mx.setValue2(v2)
 
 def setVolume(vol):
-    global led_mode, last_vol, last_effect_change
+    global led_mode, last_vol, last_effect_change, last_select_change
     pulse.volume_set_all_chans(sink, vol)
     last_effect_change -= effect_timeout_ms
+    last_select_change -= effect_timeout_ms
 
     led_mode = LED_MODE_VOLUME
     kc.setStrip1(vol, 127, 127, 127)
     last_vol = vol
 
 def setRotate(rot):
-    print(f"Rotation: {rot}", end="\n\r")
+    global led_mode, last_select_change, album_progress
+    now = int(time.time() * 1000)
+
+    led_mode = LED_MODE_SELECT
+    last_select_change = now
+
+    if rot > 0:
+        print("Next Track", end="\n\r")
+        sp.next()
+    else:
+        print("Previous Track", end="\n\r")
+        sp.previous()
+
+    album_progress = sp.album_progress()
+    kc.setStrip1(album_progress, 0, 150, 200)
 
 kc.setVolumeCallback(setVolume)
 kc.setRequestCallback(setRequest)
@@ -86,9 +105,20 @@ try:
         now = int(time.time() * 1000)
         if led_mode == LED_MODE_EFFECT and (now - last_effect_change) > effect_timeout_ms:
             led_mode = LED_MODE_VOLUME
-            kc.setStrip1(last_vol, 127, 127, 127)
-        elif led_mode == LED_MODE_VOLUME and (now - last_show_progress) > progress_time_ms:
-            kc.setStrip2(sp.progress(), 127, 127, 127)
+
+        if led_mode == LED_MODE_SELECT and (now - last_select_change) > select_timeout_ms:
+            led_mode = LED_MODE_VOLUME
+
+        if (now - last_show_progress) > progress_time_ms:
+            last_show_progress = now
+
+            if led_mode == LED_MODE_VOLUME:
+                kc.setStrip1(last_vol, 127, 127, 127)
+                kc.setStrip2(sp.progress(), 127, 127, 127)
+
+            elif led_mode == LED_MODE_SELECT:
+                kc.setStrip1(album_progress, 0, 150, 200)
+                kc.setStrip2(sp.progress(), 127, 127, 127)
 
         kc.flushStrips()
         wiringpi.delay(1)
