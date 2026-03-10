@@ -83,6 +83,7 @@ class SpotifyPlayer(MusicPlayer):
             self.next_report = time.time() + self.report_interval
             self.info = self.sp.currently_playing()
             self.last_asked = time.time()
+            print(self.info)
         total_time = self.info['item']['duration_ms'] / 1000.0
 
         since_last_report = now - self.last_asked
@@ -92,18 +93,12 @@ class SpotifyPlayer(MusicPlayer):
         self.next_report = min(now + time_left, self.last_asked + self.report_interval)
         return cur_time / total_time
 
-    def album_progress(self):
-        self.info = self.sp.currently_playing()
+    def get_current_track_index(self):
+        total_tracks = self.info['item']['album']['total_tracks']
+        if not self.info or not self.info.get("item"):
+            return 0
 
-        if not self.info or self.info.get('item') is None:
-            return 0.0
-
-        # Extract track metadata
-        current_idx = self.info['item']['track_number']  # e.g., 3
-        total_tracks = self.info['item']['album']['total_tracks'] # e.g., 12
-
-        # Return as a percentage for your setStrip functions
-        return current_idx / total_tracks
+        return self.info["item"]["track_number"] - 1
 
     def seek(self, time: float):
         info = self.sp.currently_playing()
