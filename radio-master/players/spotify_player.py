@@ -99,11 +99,9 @@ class SpotifyPlayer(MusicPlayer):
         print("Listening worker");
         while True:
             raw_data, _ = self.server_socket.recvfrom(4096)
-            print("Got data");
             try:
                 event_data = json.loads(raw_data.decode('utf-8'))
                 self._update_internal_state(event_data)
-                print(f"Parsing: {event_data}")
             except Exception as e:
                 print(f"Error parsing event: {e}")
 
@@ -113,7 +111,6 @@ class SpotifyPlayer(MusicPlayer):
             self.last_updated_at = time.time()
             self.info['progress_ms'] = int(data.get('POSITION_MS', 0))
 
-        # Check if we have enough data to build a mini 'info' object
         if "TRACK_ID" in data and event == 'track_changed':
             self.info = {
                 'is_playing': data.get('PLAYER_EVENT') == 'playing',
@@ -136,22 +133,18 @@ class SpotifyPlayer(MusicPlayer):
         if event == 'playing':
             if self.info:
                 self.info['is_playing'] = True
-                # If librespot sends a position with the play event, use it
                 if 'POSITION_MS' in data:
                     self.info['progress_ms'] = int(data.get('POSITION_MS'))
                 self.last_updated_at = time.time()
 
-            # 3. Handle Pause/Stop
         elif event in ['paused', 'stopped']:
             if self.info:
-                # Capture the exact progress at the moment of pausing
                 if self.info['is_playing']:
                     elapsed = (time.time() - self.last_updated_at) * 1000
                     self.info['progress_ms'] += elapsed
 
                 self.info['is_playing'] = False
                 self.last_updated_at = time.time()
-        # If the event is 'stop' or 'pause', update playing status
         if data.get('PLAYER_EVENT') in ['paused', 'stopped']:
             if self.info: self.info['is_playing'] = False
 
@@ -162,7 +155,6 @@ class SpotifyPlayer(MusicPlayer):
         total_ms = self.info['item']['duration_ms']
         if total_ms == 0: return 0.0
 
-        # Calculate live progress
         elapsed_ms = 0
         if self.info.get('is_playing'):
             elapsed_ms = (time.time() - self.last_updated_at) * 1000
@@ -171,74 +163,72 @@ class SpotifyPlayer(MusicPlayer):
         return min(current_progress_ms / total_ms, 1.0)
 
     def get_queue_position(self):
-        """
-        Returns (current_index, total_tracks). 
-        Correctly distinguishes between Album index and Playlist index.
-        """
-        # 1. Fallback to Librespot's Metadata (Correct for Albums)
         librespot_idx = 0
         if self.info and self.info.get('item'):
             librespot_idx = self.info['item'].get('track_number', 1) - 1
 
-        # 2. Check Cache to save API calls
-        current_uri = self.info['item'].get('uri') if self.info else None
-        if hasattr(self, '_cached_total') and self._last_uri == current_uri:
+        current_uri = self.info['item'].get('uri') if self.info and self.info.get('item') else None
+
+        if hasattr(self, '_cached_total') and getattr(self, '_last_uri', None) == current_uri:
             return (self._cached_index, self._cached_total)
 
         try:
             playback = self.sp.current_playback()
-            
-            # --- Case A: No active API context (Liked Songs / Single Track) ---
-            if not playback or not playback.get('context'):
-                total = playback['item']['album']['total_tracks'] if playback else 1
-                self._update_cache(librespot_idx, total, current_uri)
-                return (librespot_idx, total)
 
-            context = playback['context']
-            ctype = context['type'] # 'album', 'playlist', 'artist'
-            curi = context['uri']
+            if not playback or not playback.get('item'):
+                return (librespot_idx, 1)
 
-            # --- Case B: Album ---
-            if ctype == 'album':
-                # Librespot's index is perfect for albums. Just get the total.
+            if not playback.get('context'):
                 total = playback['item']['album']['total_tracks']
                 self._update_cache(librespot_idx, total, current_uri)
                 return (librespot_idx, total)
 
-            # --- Case C: Playlist (The Search Logic) ---
-            if ctype == 'playlist':
+            context = playback['context']
+            print(context)
+            ctype = context.get('type')
+            curi = context.get('uri')
+
+            if ctype == 'album':
+                total = playback['item']['album']['total_tracks']
+                self._update_cache(librespot_idx, total, current_uri)
+                return (librespot_idx, total)
+
+            if ctype == "collection":
                 found_idx = -1
-                # Search the playlist to find which index our current URI is at
-                # We paginate (100 at a time) to handle long playlists
                 offset = 0
                 total = 0
-                while offset < 1000: # Search limit for performance
-                    res = self.sp.playlist_items(curi, offset=offset, limit=100, 
-                                                 fields='items(track(uri,id)),total')
-                    total = res['total']
-                    if not res['items']: break
-                    
-                    for i, item in enumerate(res['items']):
-                        track = item.get('track')
-                        if track and (track['uri'] == current_uri or track['id'] in current_uri):
+
+                while True:
+                    res = self.sp.current_user_saved_tracks(
+                        offset=offset,
+                        limit=50
+                    )
+
+                    items = res.get("items", [])
+                    total = res.get("total", 0)
+
+                    if not items:
+                        break
+
+                    for i, item in enumerate(items):
+                        track = item.get("track")
+                        if track and track.get("uri") == current_uri:
                             found_idx = offset + i
                             break
-                    
-                    if found_idx != -1 or len(res['items']) < 100:
+
+                    if found_idx != -1 or len(items) < 50:
                         break
-                    offset += 100
-                
-                # If we found it in the playlist, use that index. 
-                # Otherwise, fallback to the album index to avoid showing 0.
+
+                    offset += 50
+
                 final_idx = found_idx if found_idx != -1 else librespot_idx
                 self._update_cache(final_idx, total, current_uri)
                 return (final_idx, total)
-
-        except Exception as e:
-            # Silence API errors and return Librespot fallback
+        except Exception:
             pass
 
         return (librespot_idx, 1)
+
 
     def _update_cache(self, idx, total, uri):
         self._cached_index = idx
