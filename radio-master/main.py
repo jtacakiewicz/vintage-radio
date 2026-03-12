@@ -17,8 +17,8 @@ i2caddr = 0x35
 LED_MODE_VOLUME = 0
 LED_MODE_EFFECT = 1
 LED_MODE_SELECT = 2
-effect_timeout_ms = 5000
-select_timeout_ms = 2000
+effect_timeout_ms = 2000
+select_timeout_ms = 5000
 progress_time_ms = 250
 album_progress = 0
 
@@ -90,7 +90,9 @@ def setRotate(rot):
         print("Previous Track", end="\n\r")
         sp.previous()
 
-    album_progress = sp.album_progress()
+    queue = sp.get_queue_position()
+    print(f"PROGRESS: {queue}")
+    album_progress = queue[0]
     kc.setStrip1(album_progress, 0, 150, 200)
 
 kc.setVolumeCallback(setVolume)
@@ -113,6 +115,7 @@ try:
             last_show_progress = now
 
             if led_mode == LED_MODE_VOLUME:
+
                 kc.setStrip1(last_vol, 127, 127, 127)
                 kc.setStrip2(sp.progress(), 127, 127, 127)
 
