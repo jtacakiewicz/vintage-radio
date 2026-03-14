@@ -17,6 +17,14 @@ i2caddr = 0x35
 LED_MODE_VOLUME = 0
 LED_MODE_EFFECT = 1
 LED_MODE_SELECT = 2
+select_timeout_ms = 3000 # Time to wait before "committing" to the song
+rotation_window_ms = 600 # Time window to detect the "double-turn" to enter Select Mode
+
+pending_index = 0
+total_tracks = 1
+last_rotate_time = 0
+in_fast_select = False
+
 effect_timeout_ms = 2000
 select_timeout_ms = 5000
 progress_time_ms = 250
@@ -92,8 +100,8 @@ def setRotate(rot):
 
     queue = sp.get_queue_position()
     print(f"PROGRESS: {queue}")
-    album_progress = queue[0]
-    kc.setStrip1Progress(album_progress, 0, 150, 200)
+    album_progress = queue
+    kc.setStrip1Selection(album_progress[0], album_progress[1])
 
 kc.setVolumeCallback(setVolume)
 kc.setRequestCallback(setRequest)
@@ -120,7 +128,7 @@ try:
                 kc.setStrip2Progress(sp.progress(), 127, 127, 127)
 
             elif led_mode == LED_MODE_SELECT:
-                kc.setStrip1Progress(album_progress, 0, 150, 200)
+                kc.setStrip1Selection(album_progress[0], album_progress[1])
                 kc.setStrip2Progress(sp.progress(), 127, 127, 127)
 
         kc.flushStrips()

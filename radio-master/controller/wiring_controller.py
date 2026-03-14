@@ -273,11 +273,40 @@ class WiringController(IOController):
                 self._send_led_packet(i, 1, 0)
                 self._send_led_packet(i, 2, 0)
 
+    def _update_strip_selection(self, start, end, cur_idx, min_idx=0, max_idx=None, selection_idx=None, reverse=False):
+        if not selection_idx:
+            selection_idx = cur_idx
+        if not max_idx:
+            max_idx = (end-start)//3
+
+        for i in range(start, end + 1):
+            distance = (end - i) if reverse else (i - start)
+            # The GUI: #o#o#o#o# where o are the selectable entries and # are delimiters
+            # delimiter
+            if distance % 2 == 0 and max_idx + 1 > distance / 2:
+                self._send_led_packet(i, 0, 255)
+                self._send_led_packet(i, 1, 255)
+                self._send_led_packet(i, 2, 255)
+            elif distance % 2 == 1 and distance // 2 == cur_idx:
+                self._send_led_packet(i, 0, 255)
+                self._send_led_packet(i, 1, 0)
+                self._send_led_packet(i, 2, 0)
+            else:
+                self._send_led_packet(i, 0, 0)
+                self._send_led_packet(i, 1, 0)
+                self._send_led_packet(i, 2, 0)
+
     def setStrip1Progress(self, pct: float, r: int, g: int, b: int):
         self._update_strip_progress(0, 46, pct, r, g, b, reverse=False)
 
     def setStrip2Progress(self, pct: float, r: int, g: int, b: int):
         self._update_strip_progress(47, 92, pct, r, g, b, reverse=True)
+
+    def setStrip1Selection(self, idx: int, max_idx: int):
+        self._update_strip_selection(0, 46, idx, max_idx=max_idx, reverse=False)
+
+    def setStrip2Selection(self, idx: int, max_idx: int):
+        self._update_strip_selection(47, 92, idx, max_idx=max_idx, reverse=True)
         
     def flushStrips(self):
         self._send_led_packet(255, 0, 0, force=True)
