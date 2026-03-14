@@ -176,7 +176,7 @@ class WiringController(IOController):
             return min(max(res, 0.0), 1.0)
 
         raw_mod1 = scale(raw[0], raw[1], *ranges['p5'])
-        raw_volume = scale(raw[2], raw[3], *ranges['p4'])
+        raw_volume = ( 1 - scale(raw[2], raw[3], *ranges['p4']))
         raw_mod2 = scale(raw[4], raw[5], *ranges['p3'])
 
         self.filt_mod1 = (ANALOG_SMOOTH_ALPHA * raw_mod1) + ((1 - ANALOG_SMOOTH_ALPHA) * self.filt_mod1)

@@ -72,6 +72,8 @@ def setEffectValue(v1, v2):
     led_mode = LED_MODE_EFFECT
     last_effect_change = now
 
+    kc.setStrip1Progress(v2, 0, 255, 0)
+    kc.setStrip2Progress(v1, 0, 0, 255)
     mx.setValue1(v1)
     mx.setValue2(v2)
 
