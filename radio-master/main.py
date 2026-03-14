@@ -61,8 +61,8 @@ def setEffectValue(v1, v2):
     led_mode = LED_MODE_EFFECT
     last_effect_change = now
 
-    kc.setStrip1(v2, 0, 255, 0)
-    kc.setStrip2(v1, 0, 0, 255)
+    kc.setStrip1Progress(v2, 0, 255, 0)
+    kc.setStrip2Progress(v1, 0, 0, 255)
     mx.setValue1(v1)
     mx.setValue2(v2)
 
@@ -73,7 +73,7 @@ def setVolume(vol):
     last_select_change -= effect_timeout_ms
 
     led_mode = LED_MODE_VOLUME
-    kc.setStrip1(vol, 127, 127, 127)
+    kc.setStrip1Progress(vol, 127, 127, 127)
     last_vol = vol
 
 def setRotate(rot):
@@ -93,7 +93,7 @@ def setRotate(rot):
     queue = sp.get_queue_position()
     print(f"PROGRESS: {queue}")
     album_progress = queue[0]
-    kc.setStrip1(album_progress, 0, 150, 200)
+    kc.setStrip1Progress(album_progress, 0, 150, 200)
 
 kc.setVolumeCallback(setVolume)
 kc.setRequestCallback(setRequest)
@@ -116,12 +116,12 @@ try:
 
             if led_mode == LED_MODE_VOLUME:
 
-                kc.setStrip1(last_vol, 127, 127, 127)
-                kc.setStrip2(sp.progress(), 127, 127, 127)
+                kc.setStrip1Progress(last_vol, 127, 127, 127)
+                kc.setStrip2Progress(sp.progress(), 127, 127, 127)
 
             elif led_mode == LED_MODE_SELECT:
-                kc.setStrip1(album_progress, 0, 150, 200)
-                kc.setStrip2(sp.progress(), 127, 127, 127)
+                kc.setStrip1Progress(album_progress, 0, 150, 200)
+                kc.setStrip2Progress(sp.progress(), 127, 127, 127)
 
         kc.flushStrips()
         wiringpi.delay(1)

@@ -90,11 +90,9 @@ class WiringController(IOController):
             wiringpi.pullUpDnControl(pin, wiringpi.GPIO.PUD_UP)
 
         self.encoder_subticks = 0
-        self.TICK_THRESHOLD = 3 # Adjusted for polling stability
+        self.TICK_THRESHOLD = 3
 
         self.last_encoder_state = 0
-        # Transition table: [old_state << 2 | new_state]
-        # 1 = Clockwise, -1 = Counter-Clockwise, 0 = No move/Invalid
         self.TRANSITIONS = [
             0, -1,  1,  0,  # 00 -> 00, 01, 10, 11 (11 is illegal)
             1,  0,  0, -1,  # 01 -> 00, 01, 10, 11 (10 is illegal)
@@ -115,10 +113,6 @@ class WiringController(IOController):
         self.volume_callback = callback
 
     def _process_pin_event(self, pin: int) -> bool:
-        """
-        Zwraca True tylko wtedy, gdy wykryto stabilne naciśnięcie (zbocze opadające).
-        Używane dla Requestów, by nie ignorować kliknięć.
-        """
         current_state = wiringpi.digitalRead(pin)
         now = int(time.time() * 1000)
         is_click = False
@@ -129,7 +123,6 @@ class WiringController(IOController):
 
         if (now - self.last_change_time[pin]) > DEBOUNCE_MS:
             if self.stable_state[pin] != current_state:
-                # Jeśli zmiana ze stanu wysokiego (1) na niski (0) -> kliknięcie
                 if self.stable_state[pin] == 1 and current_state == 0:
                     is_click = True
                 self.stable_state[pin] = current_state
@@ -137,7 +130,6 @@ class WiringController(IOController):
         return is_click
 
     def setEncoderRotateCallback(self, callback: Callable[[int], None]):
-        """Callback receives +1 for clockwise, -1 for counter-clockwise"""
         self.rotate_callback = callback
 
 
@@ -164,7 +156,6 @@ class WiringController(IOController):
 
 
     def _update_analogs(self):
-        """Odczyt i skalowanie potencjometrów przez I2C"""
         if self.i2c_fd < 0: return
 
         wiringpi.wiringPiI2CWrite(self.i2c_fd, 0)
@@ -260,18 +251,14 @@ class WiringController(IOController):
                     count += 1
                     if count >= limit: return
 
-    def _update_strip(self, start, end, pct, r, g, b, reverse=False):
+    def _update_strip_progress(self, start, end, pct, r, g, b, reverse=False):
         length = end - start + 1
-        # The exact number of LEDs that should be "weighted" as ON
         precise_num_on = pct * length
 
         for i in range(start, end + 1):
-            # Calculate distance from the 'start' of the fill
-            # Strip 1 fills 0 -> 46, Strip 2 fills 92 -> 47
             distance = (end - i) if reverse else (i - start)
 
             if distance < int(precise_num_on):
-                # Full brightness for fully covered pixels
                 self._send_led_packet(i, 0, r)
                 self._send_led_packet(i, 1, g)
                 self._send_led_packet(i, 2, b)
@@ -286,11 +273,11 @@ class WiringController(IOController):
                 self._send_led_packet(i, 1, 0)
                 self._send_led_packet(i, 2, 0)
 
-    def setStrip1(self, pct: float, r: int, g: int, b: int):
-        self._update_strip(0, 46, pct, r, g, b, reverse=False)
+    def setStrip1Progress(self, pct: float, r: int, g: int, b: int):
+        self._update_strip_progress(0, 46, pct, r, g, b, reverse=False)
 
-    def setStrip2(self, pct: float, r: int, g: int, b: int):
-        self._update_strip(47, 92, pct, r, g, b, reverse=True)
+    def setStrip2Progress(self, pct: float, r: int, g: int, b: int):
+        self._update_strip_progress(47, 92, pct, r, g, b, reverse=True)
         
     def flushStrips(self):
         self._send_led_packet(255, 0, 0, force=True)
