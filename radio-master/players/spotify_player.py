@@ -229,6 +229,17 @@ class SpotifyPlayer(MusicPlayer):
 
         return (librespot_idx, 1)
 
+    def jump_to_index(self, index):
+        try:
+            playback = self.sp.current_playback()
+            if playback and playback.get('context'):
+                context_uri = playback['context']['uri']
+                self.sp.start_playback(context_uri=context_uri, offset={"position": index})
+            else:
+                pass
+        except Exception as e:
+            print(f"Jump to index failed: {e}")
+
 
     def _update_cache(self, idx, total, uri):
         self._cached_index = idx

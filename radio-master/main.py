@@ -17,17 +17,20 @@ i2caddr = 0x35
 LED_MODE_VOLUME = 0
 LED_MODE_EFFECT = 1
 LED_MODE_SELECT = 2
-select_timeout_ms = 3000 # Time to wait before "committing" to the song
-rotation_window_ms = 600 # Time window to detect the "double-turn" to enter Select Mode
+rotation_window_ms = 2000 # Time window to detect the "double-turn" to enter Select Mode
+
+
+volume_color = ( 252, 216, 35 )
+progress_color = (242, 252, 194)
 
 pending_index = 0
 total_tracks = 1
 last_rotate_time = 0
 in_fast_select = False
 
-effect_timeout_ms = 2000
-select_timeout_ms = 5000
-progress_time_ms = 250
+effect_timeout_ms = 5000
+select_timeout_ms = 7000
+progress_time_ms = 150
 album_progress = 0
 
 led_mode = LED_MODE_VOLUME
@@ -69,8 +72,6 @@ def setEffectValue(v1, v2):
     led_mode = LED_MODE_EFFECT
     last_effect_change = now
 
-    kc.setStrip1Progress(v2, 0, 255, 0)
-    kc.setStrip2Progress(v1, 0, 0, 255)
     mx.setValue1(v1)
     mx.setValue2(v2)
 
@@ -81,42 +82,56 @@ def setVolume(vol):
     last_select_change -= effect_timeout_ms
 
     led_mode = LED_MODE_VOLUME
-    kc.setStrip1Progress(vol, 127, 127, 127)
     last_vol = vol
 
 def setRotate(rot):
-    global led_mode, last_select_change, album_progress
+    global led_mode, last_select_change, album_progress, pending_index, total_tracks, last_rotate_time, in_fast_select
+    
     now = int(time.time() * 1000)
+    direction = 1 if rot > 0 else -1
+    
+    current_idx, total_tracks = sp.get_queue_position()
 
-    led_mode = LED_MODE_SELECT
-    last_select_change = now
+    if (now - last_rotate_time) < rotation_window_ms:
+        led_mode = LED_MODE_SELECT
+        if not in_fast_select:
+            print("--- ENTERING SELECT MODE ---")
+            in_fast_select = True
+            pending_index = current_idx
+    
+    last_rotate_time = now
+    last_select_change = now 
 
-    if rot > 0:
-        print("Next Track", end="\n\r")
-        sp.next()
+    if in_fast_select:
+        pending_index = (pending_index + direction) % total_tracks
+        print(f"Selecting: {pending_index + 1}/{total_tracks}")
     else:
-        print("Previous Track", end="\n\r")
-        sp.previous()
-
-    queue = sp.get_queue_position()
-    print(f"PROGRESS: {queue}")
-    album_progress = queue
-    kc.setStrip1Selection(album_progress[0], album_progress[1])
+        if rot > 0:
+            sp.next()
+        else:
+            sp.previous()
+        album_progress = sp.get_queue_position()
+    album_progress = sp.get_queue_position()
 
 kc.setVolumeCallback(setVolume)
 kc.setRequestCallback(setRequest)
 kc.setEffectCallback(setEffect)
 kc.setOptionalValueCallback(setEffectValue)
 kc.setEncoderRotateCallback(setRotate)
-try:
+try: 
     while True:
         kc.update()
 
         now = int(time.time() * 1000)
-        if led_mode == LED_MODE_EFFECT and (now - last_effect_change) > effect_timeout_ms:
-            led_mode = LED_MODE_VOLUME
 
         if led_mode == LED_MODE_SELECT and (now - last_select_change) > select_timeout_ms:
+            if in_fast_select:
+                print(f"--- COMMITTING TO TRACK {pending_index + 1} ---")
+                sp.jump_to_index(pending_index) 
+                in_fast_select = False
+            
+            led_mode = LED_MODE_VOLUME
+        if led_mode == LED_MODE_EFFECT and (now - last_effect_change) > effect_timeout_ms:
             led_mode = LED_MODE_VOLUME
 
         if (now - last_show_progress) > progress_time_ms:
@@ -124,14 +139,33 @@ try:
 
             if led_mode == LED_MODE_VOLUME:
 
-                kc.setStrip1Progress(last_vol, 127, 127, 127)
-                kc.setStrip2Progress(sp.progress(), 127, 127, 127)
+                kc.setStrip1Progress(last_vol, *volume_color)
+                kc.setStrip2Progress(sp.progress(), *progress_color)
 
             elif led_mode == LED_MODE_SELECT:
-                kc.setStrip1Selection(album_progress[0], album_progress[1])
-                kc.setStrip2Progress(sp.progress(), 127, 127, 127)
+                time_passed = now - last_select_change
+                time_left = select_timeout_ms - time_passed
+                
+                if time_left > 6000:
+                    blink_rate = select_timeout_ms
+                elif time_left > 3500:
+                    blink_rate = 500
+                elif time_left > 1000:
+                    blink_rate = 250
+                is_on = ((now - last_select_change) // blink_rate) % 2 == 0
+                
+                s_color = (0, 255, 0) if is_on else (0, 0, 0)
+                
+                kc.setStrip1Selection(
+                    album_progress[0], 
+                    album_progress[1], 
+                    selection_idx=pending_index, 
+                    selection_color=s_color
+                )
+                
+                kc.setStrip2Progress(sp.progress(), *progress_color)
 
         kc.flushStrips()
         wiringpi.delay(1)
 except KeyboardInterrupt:
-    print("\nZamykanie kontrolera...")
+    print("\nClosing player...")
